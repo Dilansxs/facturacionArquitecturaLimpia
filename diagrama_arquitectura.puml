@@ -1,0 +1,91 @@
+@startuml
+skinparam classAttributeIconSize 0
+left to right direction
+
+package "Adaptadores de entrada" {
+  class AdaptadorREST {
+    +crear_factura_http(body_http: dict): dict
+  }
+
+  class AdaptadorBrokerAMQP {
+    +consumir_mensaje(mensaje_json: str): dict
+  }
+}
+
+package "Aplicacion" {
+  interface CrearFactura {
+    +ejecutar(solicitud: dict): dict
+  }
+
+  class CrearFacturaUseCase {
+    -repositorio: RepositorioFacturas
+    -control_fraude: ControlFraude
+    -politica_fiscal: PoliticaFiscal
+    +ejecutar(solicitud: dict): dict
+  }
+}
+
+package "Dominio" {
+  interface RepositorioFacturas {
+    +guardar(factura: Factura): None
+    +obtener_por_id(id: str): Factura | None
+  }
+
+  class ControlFraude {
+    +validar(cliente_id: str, subtotal: Decimal): None
+  }
+
+  class PoliticaFiscal {
+    +tasa_aplicable(cliente_id: str): Decimal
+  }
+
+  class Factura {
+    +id: str
+    +cliente_id: str
+    +lineas: list[LineaFactura]
+    +subtotal: Decimal
+    +impuesto: Decimal
+    +total: Decimal
+    +crear(cliente_id: str, lineas: list[LineaFactura], tasa: Decimal): Factura
+  }
+
+  class LineaFactura {
+    +descripcion: str
+    +cantidad: int
+    +precio_unitario: Decimal
+    +subtotal: Decimal
+  }
+}
+
+package "Infraestructura" {
+  class RepositorioEnMemoria {
+    -facturas: dict
+  }
+
+  class RepositorioPostgreSQL {
+    -facturas: dict
+  }
+
+  class RepositorioOracle {
+    -facturas: dict
+  }
+
+  component "seleccionar_repositorio(proveedor)" as SelectorRepositorio
+}
+
+AdaptadorREST --> CrearFactura : invoca
+AdaptadorBrokerAMQP --> CrearFactura : invoca
+CrearFacturaUseCase ..|> CrearFactura
+CrearFacturaUseCase --> RepositorioFacturas
+CrearFacturaUseCase --> ControlFraude
+CrearFacturaUseCase --> PoliticaFiscal
+CrearFacturaUseCase ..> Factura : crea
+Factura "1" *-- "1..*" LineaFactura
+
+RepositorioEnMemoria ..|> RepositorioFacturas
+RepositorioPostgreSQL ..|> RepositorioFacturas
+RepositorioOracle ..|> RepositorioFacturas
+SelectorRepositorio ..> RepositorioEnMemoria : selecciona
+SelectorRepositorio ..> RepositorioPostgreSQL : selecciona
+SelectorRepositorio ..> RepositorioOracle : selecciona
+@enduml
